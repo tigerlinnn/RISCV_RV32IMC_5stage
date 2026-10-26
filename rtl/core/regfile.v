@@ -24,10 +24,20 @@ module regfile (
   reg [31:0] regs [1:31];
 
   // Read port A
-  assign rs1_data = (rs1_addr == 5'd0) ? 32'd0 : regs[rs1_addr];
+  // RISCV_1 修复: 同拍"写穿"(write-through)。
+  // 本研究原方案是"ID 级读寄存器 + EX 级前递", 它有一个正好差 3 条指令的
+  // RAW 冲突空洞: 消费者在 ID 读寄存器时, 生产者恰好停在 WB 级(数据还没写进
+  // 寄存器堆), 等消费者到 EX 级时生产者已退休、前递来不及 —— 于是读到旧值。
+  // 让读口在"本拍正在写同一寄存器"时直接旁路写数据, 即可补上这个空洞。
+  wire wr_same_rs1 = wr_en && (rd_addr != 5'd0) && (rd_addr == rs1_addr);
+  wire wr_same_rs2 = wr_en && (rd_addr != 5'd0) && (rd_addr == rs2_addr);
+
+  assign rs1_data = (rs1_addr == 5'd0) ? 32'd0 :
+                    (wr_same_rs1 ? rd_data : regs[rs1_addr]);
 
   // Read port B
-  assign rs2_data = (rs2_addr == 5'd0) ? 32'd0 : regs[rs2_addr];
+  assign rs2_data = (rs2_addr == 5'd0) ? 32'd0 :
+                    (wr_same_rs2 ? rd_data : regs[rs2_addr]);
 
   // Write
   integer i;

@@ -1,0 +1,18 @@
+{
+  "name": "B",
+  "sel": 0,
+  "row": 6,
+  "conv_col": 15,
+  "valid_rows": 4,
+  "valid_cols": 13,
+  "scale": 14848,
+  "shift": 3,
+  "zp_in": 5,
+  "zp_out": 10,
+  "relu_type": 1,
+  "pool": 0,
+  "stride": 0,
+  "ifm_beats": 90,
+  "wgt_beats": 72,
+  "gold_beats": 90
+}

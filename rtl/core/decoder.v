@@ -60,9 +60,8 @@ module decoder (
 
       OP_AUIPC: begin
         ctrl[`CTRL_REG_WR]  = 1'b1;
-        ctrl[`CTRL_ALU_OP]  = ALU_ADD;
-        ctrl[`CTRL_ALU_SRC] = 1'b1;
-        ctrl[`CTRL_WB_SEL]  = WB_ALU;
+        // RISCV_1 修复: 写回来源用 WB_AUIPC, 由 EX 级算 pc+imm (原来错误地用 ALU 算 rs1+imm)
+        ctrl[`CTRL_WB_SEL]  = WB_AUIPC;
       end
 
       OP_JAL: begin
@@ -114,11 +113,20 @@ module decoder (
         ctrl[`CTRL_WB_SEL]  = WB_ALU;
         case (funct3)
           3'b000: ctrl[`CTRL_ALU_OP] = ALU_ADD;
-          3'b001: ctrl[`CTRL_ALU_OP] = ALU_SLL;
+          3'b001: begin
+            // RISCV_1 修复: RV32 的 SLLI, shamt[5](= funct7[0]) 必须为 0,
+            //   否则是保留编码, 应触发"非法指令"异常。
+            if (funct7[0]) ctrl[`CTRL_ILLEGAL] = 1'b1;
+            else           ctrl[`CTRL_ALU_OP]  = ALU_SLL;
+          end
           3'b010: ctrl[`CTRL_ALU_OP] = ALU_SLT;
           3'b011: ctrl[`CTRL_ALU_OP] = ALU_SLTU;
           3'b100: ctrl[`CTRL_ALU_OP] = ALU_XOR;
-          3'b101: ctrl[`CTRL_ALU_OP] = funct7[5] ? ALU_SRA : ALU_SRL;
+          3'b101: begin
+            // 同理: SRLI / SRAI 的 shamt[5] 也必须为 0
+            if (funct7[0]) ctrl[`CTRL_ILLEGAL] = 1'b1;
+            else           ctrl[`CTRL_ALU_OP]  = funct7[5] ? ALU_SRA : ALU_SRL;
+          end
           3'b110: ctrl[`CTRL_ALU_OP] = ALU_OR;
           3'b111: ctrl[`CTRL_ALU_OP] = ALU_AND;
         endcase
@@ -164,7 +172,9 @@ module decoder (
       end
 
       OP_FENCE: begin
-        ctrl[`CTRL_FENCE] = 1'b1;
+        // funct3=001 -> FENCE.I（自修改代码后要求重新取指）, 需要作废 I-Cache
+        // funct3=000 -> 普通 FENCE, 对本单核设计无副作用（不置位）
+        ctrl[`CTRL_FENCE_I] = (instr[14:12] == 3'b001);
       end
 
       default: begin

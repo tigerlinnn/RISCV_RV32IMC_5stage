@@ -28,9 +28,14 @@ module hazard_unit (
   // Control hazards
   input  wire        branch_mispredict,
   input  wire        jump_ex,        // JAL/JALR resolved in EX
+  input  wire        trap_enter,     // RISCV_1 new: exception/interrupt taken (decided in MEM)
+  input  wire        trap_kill_mem,  // RISCV_1 new: 1=异常(要杀掉 MEM 级), 0=中断(让它执行完)
 
   // MulDiv stall
   input  wire        muldiv_busy,
+
+  // Memory/fetch stall (RISCV_1 新增: 用于抑制停顿期间的 flush)
+  input  wire        mem_stall,
 
   // Forwarding outputs
   output reg  [1:0]  fwd_rs1,
@@ -93,6 +98,23 @@ module hazard_unit (
       flush_ex = 1'b1;   // Bubble
     end
 
+    // RISCV_1 修复: 陷阱(异常/中断)必须把"陷阱指令之后那一条"也一起干掉。
+    //   陷阱在 MEM 级判定, 此时紧跟其后的那条指令正在 EX 级。如果不管它,
+    //   它下一拍就会进入 MEM —— 而它自己也可能是一条非法指令
+    //   (riscv-tests 的 RVTEST_CODE_END 就故意在那儿放了一条 unimp),
+    //   于是又触发一次陷阱, 把 mcause / mepc 覆盖掉, 整个陷阱就报错了。
+    //   所以要额外拉 flush_mem, 把 EX/MEM 寄存器清掉。
+    if (trap_enter) begin
+      flush_id  = 1'b1;
+      flush_ex  = 1'b1;
+      // RISCV_1: 只有**异常**(ecall/ebreak/非法指令)才需要干掉 MEM 级那条 —— 它自己
+      //   就是出错指令; 而中断是"两条指令之间"发生, MEM 级那条必须正常执行完,
+      //   否则 store 这类有副作用的指令会被重复执行一次(不精确中断)。
+      flush_mem = trap_kill_mem;
+      stall_if  = 1'b0;
+      stall_id  = 1'b0;
+    end
+
     // Branch mispredict: flush IF, ID, EX (instructions fetched after branch)
     if (branch_mispredict) begin
       flush_id  = 1'b1;
@@ -101,6 +123,16 @@ module hazard_unit (
       stall_if  = 1'b0;
       stall_id  = 1'b0;
     end
+
+    // RISCV_1 修复: 访存/取指停顿期间, 流水线寄存器本来就不更新(被 mem_stall 冻结),
+    // 如果这时候还发 flush, 会把"本该被 EX/MEM 捕捉到的指令"直接抹掉:
+    //   - load-use 停顿期间发 flush_ex -> 把 load 本身抹掉, 结果永远不写回(读回旧值);
+    //   - 分支纠正期间发 flush -> 把分支/JAL 本身抹掉, 链接寄存器丢失。
+    // 停顿期间先不发 flush; 由于停顿期间 EX 里的指令不会变, 相关信号会持续保持,
+    // 等 mem_stall 结束那一拍再发, 两条指令都能被正确捕获。
+    flush_id = flush_id & ~mem_stall;
+    flush_ex = flush_ex & ~mem_stall;
+    flush_mem = flush_mem & ~mem_stall;
   end
 
 endmodule

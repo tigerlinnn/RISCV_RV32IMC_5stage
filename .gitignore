@@ -1,0 +1,28 @@
+# PDS build outputs (hundreds of MB, regenerable)
+/prj/
+/.Xil/
+*.log
+
+# XSim run artifacts
+sim/check/xsim.dir/
+sim/soc/xsim.dir/
+sim/check/*.jou
+sim/soc/*.jou
+sim/check/*.pb
+sim/soc/*.pb
+sim/check/*.hex
+sim/soc/*.hex
+
+# firmware build intermediates (firmware.hex is kept for reference)
+sw/build/*.elf
+sw/build/*.map
+sw/build/*.bin
+sw/build/*.lst
+
+# generated headers / local settings
+sw/yolo_vectors.h
+.claude/
+
+# OS noise
+Thumbs.db
+desktop.ini

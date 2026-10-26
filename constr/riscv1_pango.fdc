@@ -1,0 +1,149 @@
+# ============================================================================
+# riscv1_pango.fdc — pin + timing constraints for the RISCV_1 (BRV32P SoC) port
+# ----------------------------------------------------------------------------
+# Target : Pango Logos2 PG2L200H-6IFBG676 (盘古 200K MINI / MES2L676-200HP-MINI,
+#          the 实验板 of 紫光同创远程开发调试平台)
+# Top    : riscv1_pango_top
+#
+# 管脚完全沿用已在真板验证过的 BRV32P_pango/constr/brv32p_pango.fdc：
+# 顶层端口名相同（sys_clk / key[4:0] / led[7:0] / uart_rx / uart_tx），
+# 所以约束体逐条一致，仅改了注释。
+#
+# Pin sources (cross-checked against the vendor's own demo .fdc files for this
+# exact board; see BRV32P_pango/constr/brv32p_pango.fdc for the full evidence):
+#   2_8_uart_test.fdc / 2_7_key_led_test.fdc / LCD_DEMO/prj/LCD_demo.fdc
+#
+#   Board buttons SW3..SW7 = KEY0..KEY4 = C22 C23 B22 A22 B20, active low.
+#   SW2 (RESET) is not an FPGA input — it drives the core board's reset
+#   supervisor — so there is no sys_rst_n port; the SoC reset is generated in
+#   top/riscv1_pango_top.v.
+#
+# 实验板 IO is 3.3 V on these banks (the sub-card 40-pin headers are 3.3 V).
+# ============================================================================
+
+###==== BEGIN "create_clock"
+# Core-board 27 MHz oscillator (FPGA_GCLK_27M) -> D18.  period = 1/27MHz.
+create_clock -name {sys_clk} [get_ports {sys_clk}] -period {37.037} -waveform {0.000 18.519}
+###==== END "create_clock"
+
+# ── Clock ───────────────────────────────────────────────────────────────────
+define_attribute {p:sys_clk} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:sys_clk} {PAP_IO_LOC} {D18}
+define_attribute {p:sys_clk} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:sys_clk} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:sys_clk} {PAP_IO_NONE} {TRUE}
+
+# ── User keys SW3..SW7 = KEY0..KEY4 (active low) ────────────────────────────
+# Read through gpio_in[4:0].
+# NOTE: the RESET key SW2 is deliberately absent — see top/riscv1_pango_top.v.
+define_attribute {p:key[0]} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:key[0]} {PAP_IO_LOC} {C22}
+define_attribute {p:key[0]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:key[0]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:key[0]} {PAP_IO_NONE} {TRUE}
+
+define_attribute {p:key[1]} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:key[1]} {PAP_IO_LOC} {C23}
+define_attribute {p:key[1]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:key[1]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:key[1]} {PAP_IO_NONE} {TRUE}
+
+define_attribute {p:key[2]} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:key[2]} {PAP_IO_LOC} {B22}
+define_attribute {p:key[2]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:key[2]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:key[2]} {PAP_IO_NONE} {TRUE}
+
+define_attribute {p:key[3]} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:key[3]} {PAP_IO_LOC} {A22}
+define_attribute {p:key[3]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:key[3]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:key[3]} {PAP_IO_NONE} {TRUE}
+
+define_attribute {p:key[4]} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:key[4]} {PAP_IO_LOC} {B20}
+define_attribute {p:key[4]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:key[4]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:key[4]} {PAP_IO_NONE} {TRUE}
+
+# ── User LEDs LED0..LED7 (this is gpio_out[7:0]) ────────────────────────────
+define_attribute {p:led[0]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[0]} {PAP_IO_LOC} {A20}
+define_attribute {p:led[0]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[0]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[0]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[0]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[0]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[1]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[1]} {PAP_IO_LOC} {C18}
+define_attribute {p:led[1]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[1]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[1]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[1]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[1]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[2]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[2]} {PAP_IO_LOC} {C19}
+define_attribute {p:led[2]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[2]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[2]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[2]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[2]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[3]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[3]} {PAP_IO_LOC} {E18}
+define_attribute {p:led[3]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[3]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[3]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[3]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[3]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[4]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[4]} {PAP_IO_LOC} {A17}
+define_attribute {p:led[4]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[4]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[4]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[4]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[4]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[5]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[5]} {PAP_IO_LOC} {A18}
+define_attribute {p:led[5]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[5]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[5]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[5]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[5]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[6]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[6]} {PAP_IO_LOC} {C17}
+define_attribute {p:led[6]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[6]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[6]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[6]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[6]} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:led[7]} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:led[7]} {PAP_IO_LOC} {B17}
+define_attribute {p:led[7]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[7]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[7]} {PAP_IO_DRIVE} {8}
+define_attribute {p:led[7]} {PAP_IO_NONE} {TRUE}
+define_attribute {p:led[7]} {PAP_IO_SLEW} {SLOW}
+
+# ── UART: 远程实验平台的串口（不是底板 CP2102 那条）─────────────────────────
+# 平台提示 "RX·AC26 / TX·AB26" 是按 FPGA 视角：uart_rx → AC26, uart_tx → AB26。
+# 2026-10-07 已在 BRV32P_pango 上实测确认过这个方向。
+define_attribute {p:uart_tx} {PAP_IO_DIRECTION} {OUTPUT}
+define_attribute {p:uart_tx} {PAP_IO_LOC} {AB26}
+define_attribute {p:uart_tx} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:uart_tx} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:uart_tx} {PAP_IO_DRIVE} {8}
+define_attribute {p:uart_tx} {PAP_IO_NONE} {TRUE}
+define_attribute {p:uart_tx} {PAP_IO_SLEW} {SLOW}
+
+define_attribute {p:uart_rx} {PAP_IO_DIRECTION} {INPUT}
+define_attribute {p:uart_rx} {PAP_IO_LOC} {AC26}
+define_attribute {p:uart_rx} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:uart_rx} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:uart_rx} {PAP_IO_NONE} {TRUE}

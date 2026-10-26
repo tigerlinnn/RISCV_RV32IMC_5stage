@@ -28,7 +28,7 @@
 `define CTRL_ECALL      4
 `define CTRL_EBREAK     3
 `define CTRL_MRET       2
-`define CTRL_FENCE      1
+`define CTRL_FENCE_I    1   // 原 CTRL_FENCE: 本核只关心 fence.i（普通 fence 对单核无副作用）
 `define CTRL_ILLEGAL    0
 `endif
 
@@ -74,6 +74,10 @@ localparam [2:0] WB_MEM    = 3'd1;
 localparam [2:0] WB_PC4    = 3'd2;
 localparam [2:0] WB_CSR    = 3'd3;
 localparam [2:0] WB_MULDIV = 3'd4;
+// RISCV_1 修复: AUIPC 必须写回 "pc + imm", 原来译码器把它当普通 ADD,
+// 结果算成 rs1 + imm (AUIPC 的 rs1 字段其实是立即数的一部分), 完全错误。
+// 这里给 AUIPC 单独一个写回来源编码 (3'd5 原本未使用)。
+localparam [2:0] WB_AUIPC  = 3'd5;
 
 // ── Memory access width ──────────────────────────────────────────────
 localparam [1:0] MEM_BYTE = 2'b00;
@@ -96,6 +100,7 @@ localparam [1:0] FWD_MEM_WB = 2'b10;
 
 // ── CSR Addresses ────────────────────────────────────────────────────
 localparam [11:0] CSR_MSTATUS  = 12'h300;
+localparam [11:0] CSR_MISA     = 12'h301;
 localparam [11:0] CSR_MIE      = 12'h304;
 localparam [11:0] CSR_MTVEC    = 12'h305;
 localparam [11:0] CSR_MSCRATCH = 12'h340;
@@ -110,17 +115,33 @@ localparam [11:0] CSR_MHARTID  = 12'hF14;
 // ── Memory Map ───────────────────────────────────────────────────────
 localparam [31:0] RESET_VECTOR = 32'h0000_0000;
 localparam [31:0] IMEM_BASE    = 32'h0000_0000;
-localparam [31:0] DMEM_BASE    = 32'h1000_0000;
+// RISCV_1 存储器映射:
+//   0x0000_0000 - 0x0000_7FFF  主存 32KB (代码+数据, 统一编址, BRAM 实现)
+//                               代码从 0x0000_0000 开始, 数据区请用 0x0000_1000 起
+//   0x2000_0000 - 0x2000_00FF  GPIO
+//   0x2000_0100 - 0x2000_01FF  UART
+//   0x2000_0200 - 0x2000_02FF  TIMER
+//   0x2000_0300 - 0x2000_03FF  CNN accelerator (accel_mmio)
+// 旧版把 0x1000_0000 当数据区, 但存储器忽略地址高位, 数据实际写到了第 0 个字上
+// (覆盖指令)。RISCV_1 的 axi_sram 增加了地址窗口译码, 窗口外不再折回。
+localparam [31:0] MEM_BASE     = 32'h0000_0000;
+localparam [31:0] MEM_SIZE     = 32'h0000_8000;
+localparam [31:0] DMEM_BASE    = 32'h0000_1000;
 localparam [31:0] PERIPH_BASE  = 32'h2000_0000;
 localparam [31:0] GPIO_BASE    = 32'h2000_0000;
 localparam [31:0] UART_BASE    = 32'h2000_0100;
 localparam [31:0] TIMER_BASE   = 32'h2000_0200;
+localparam [31:0] ACCEL_BASE   = 32'h2000_0300;
 
 // ── Cache parameters ─────────────────────────────────────────────────
-localparam ICACHE_SETS   = 64;
+// RISCV_1: Cache 容量(性能优化)。下面这些值由 brv32p_soc.v 显式传给 icache/dcache。
+//   容量 = SETS × WAYS × (LINE_W/8) 字节
+//     I-Cache: 256 × 2 × 16B = 8KB   (原来 64×2×16B = 2KB, 程序有 12.9KB, 太小)
+//     D-Cache: 128 × 2 × 16B = 4KB   (原来 2KB, CoreMark 工作集约 2~3KB)
+localparam ICACHE_SETS   = 256;
 localparam ICACHE_WAYS   = 2;
 localparam ICACHE_LINE_W = 128;
-localparam DCACHE_SETS   = 64;
+localparam DCACHE_SETS   = 128;
 localparam DCACHE_WAYS   = 2;
 localparam DCACHE_LINE_W = 128;
 

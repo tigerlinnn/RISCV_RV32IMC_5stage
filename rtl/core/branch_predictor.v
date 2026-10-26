@@ -12,6 +12,12 @@ module branch_predictor #(
   input  wire        clk,
   input  wire        rst_n,
 
+  // RISCV_1 新增: fence.i 作废请求 —— 自修改代码改了指令以后,
+  //   BTB 里可能还留着"旧分支的地址/跳转目标"。若新指令恰好不再是分支,
+  //   流水线里没人能发现这次错误预测, 会直接跳飞。
+  //   所以 fence.i 时把 BTB 的 valid 位全部清掉(I-Cache 也是同时作废的)。
+  input  wire        inv,
+
   // Prediction request (IF stage)
   input  wire [31:0] pc,
   output wire        pred_taken,
@@ -40,19 +46,25 @@ module branch_predictor #(
   assign pred_taken = bht[pred_idx][1];  // MSB = prediction
 
   // ── BTB: direct-mapped target cache ──────────────────────────────────
+  // RISCV_1 修复(关键): 原来 index=pc[7:2] + tag=pc[31:8], 两者合起来少了 pc[1]。
+  //   加了 RVC(16 位压缩指令)以后, 0x10 和 0x12 是两条【不同】的指令, 却会算出
+  //   完全相同的 (index, tag) —— 于是 0x12 上那条分支的预测会套到 0x10 头上。
+  //   0x10 是 c.nop, 流水线里没有任何一条指令能发现"错误预测",
+  //   结果是 PC 直接跳飞、跳过了后面的 bne —— CoreMark 就是死在这上面。
+  //   把 pc[1] 并进 tag, tag+index 就完整覆盖 pc[31:1], 不会再误命中。
   reg [31:0]              btb_target [0:BTB_ENTRIES-1];
-  reg [31-BTB_IDX_W-2:0]  btb_tag   [0:BTB_ENTRIES-1];
+  reg [32-BTB_IDX_W-2:0]  btb_tag   [0:BTB_ENTRIES-1];
   reg                      btb_valid [0:BTB_ENTRIES-1];
 
   wire [BTB_IDX_W-1:0]     btb_pred_idx;
   wire [BTB_IDX_W-1:0]     btb_upd_idx;
-  wire [31-BTB_IDX_W-2:0]  btb_pred_tag;
-  wire [31-BTB_IDX_W-2:0]  btb_upd_tag;
+  wire [32-BTB_IDX_W-2:0]  btb_pred_tag;
+  wire [32-BTB_IDX_W-2:0]  btb_upd_tag;
 
   assign btb_pred_idx = pc[BTB_IDX_W+1:2];
   assign btb_upd_idx  = update_pc[BTB_IDX_W+1:2];
-  assign btb_pred_tag = pc[31:BTB_IDX_W+2];
-  assign btb_upd_tag  = update_pc[31:BTB_IDX_W+2];
+  assign btb_pred_tag = {pc[31:BTB_IDX_W+2], pc[1]};
+  assign btb_upd_tag  = {update_pc[31:BTB_IDX_W+2], update_pc[1]};
 
   assign pred_valid  = btb_valid[btb_pred_idx] &&
                        (btb_tag[btb_pred_idx] == btb_pred_tag);
@@ -69,6 +81,10 @@ module branch_predictor #(
         btb_target[i] <= 32'b0;
         btb_tag[i]    <= 0;
       end
+    end else if (inv) begin
+      // RISCV_1: fence.i -> 丢掉所有 BTB 表项(只清 valid, 最省资源)
+      for (i = 0; i < BTB_ENTRIES; i = i + 1)
+        btb_valid[i] <= 1'b0;
     end else if (update_en) begin
       // BHT update: saturating counter
       if (update_taken) begin

@@ -9,6 +9,7 @@ module axi_interconnect (
   // Master 0: I-Cache (read only)
   input  wire [31:0] m0_araddr,
   input  wire        m0_arvalid,
+  input  wire [3:0]  m0_arlen,     // RISCV_1: 突发长度-1 (Cache 行填充)
   output reg         m0_arready,
   output reg  [31:0] m0_rdata,
   output reg         m0_rvalid,
@@ -17,6 +18,7 @@ module axi_interconnect (
   // Master 1: D-Cache (reads)
   input  wire [31:0] m1_araddr,
   input  wire        m1_arvalid,
+  input  wire [3:0]  m1_arlen,     // RISCV_1: 突发长度-1 (Cache 行填充)
   output reg         m1_arready,
   output reg  [31:0] m1_rdata,
   output reg         m1_rvalid,
@@ -39,9 +41,11 @@ module axi_interconnect (
   // Slave 0: Main Memory
   output reg  [31:0] s0_araddr,
   output reg         s0_arvalid,
+  output reg  [3:0]  s0_arlen,     // RISCV_1: 转发给主存的突发长度
   input  wire        s0_arready,
   input  wire [31:0] s0_rdata,
   input  wire        s0_rvalid,
+  input  wire        s0_rlast,     // RISCV_1: 突发最后一拍
   output reg         s0_rready,
   output reg  [31:0] s0_awaddr,
   output reg         s0_awvalid,
@@ -83,6 +87,12 @@ module axi_interconnect (
     end
   endfunction
 
+  // RISCV_1: 突发(行填充)一律走主存; 被误指向外设窗口时由主存返回 0, 不会挂死
+  wire m0_is_burst = (m0_arlen != 4'd0);
+  wire m1_is_burst = (m1_arlen != 4'd0);
+  wire m0_to_periph = addr_is_periph(m0_araddr) && !m0_is_burst;
+  wire m1_to_periph = addr_is_periph(m1_araddr) && !m1_is_burst;
+
   // ── Registered write request ─────────────────────────────────────────
   reg [31:0] wr_addr_reg, wr_data_reg;
   reg [3:0]  wr_strb_reg;
@@ -112,12 +122,12 @@ module axi_interconnect (
         end
 
         ARB_M0_RD: begin
-          if (addr_is_periph(m0_araddr) ? (s1_rvalid && m0_rready) : (s0_rvalid && m0_rready))
+          if (m0_to_periph ? (s1_rvalid && m0_rready) : (s0_rvalid && m0_rready && s0_rlast))
             arb_state <= ARB_IDLE;
         end
 
         ARB_M1_RD: begin
-          if (addr_is_periph(m1_araddr) ? (s1_rvalid && m1_rready) : (s0_rvalid && m1_rready))
+          if (m1_to_periph ? (s1_rvalid && m1_rready) : (s0_rvalid && m1_rready && s0_rlast))
             arb_state <= ARB_IDLE;
         end
 
@@ -142,7 +152,7 @@ module axi_interconnect (
     m1_arready = 1'b0; m1_rdata = 32'b0; m1_rvalid = 1'b0;
     m1_awready = 1'b0; m1_wready = 1'b0; m1_bvalid = 1'b0;
 
-    s0_araddr = 32'b0; s0_arvalid = 1'b0; s0_rready = 1'b0;
+    s0_araddr = 32'b0; s0_arvalid = 1'b0; s0_arlen = 4'd0; s0_rready = 1'b0;
     s0_awaddr = 32'b0; s0_awvalid = 1'b0; s0_wdata  = 32'b0;
     s0_wstrb  = 4'b0;  s0_wvalid  = 1'b0; s0_bready = 1'b0;
 
@@ -152,24 +162,26 @@ module axi_interconnect (
 
     case (arb_state)
       ARB_M0_RD: begin
-        if (addr_is_periph(m0_araddr)) begin
+        if (m0_to_periph) begin
           s1_araddr  = m0_araddr;  s1_arvalid = m0_arvalid;
           m0_arready = s1_arready; m0_rdata   = s1_rdata;
           m0_rvalid  = s1_rvalid;  s1_rready  = m0_rready;
         end else begin
           s0_araddr  = m0_araddr;  s0_arvalid = m0_arvalid;
+          s0_arlen   = m0_arlen;
           m0_arready = s0_arready; m0_rdata   = s0_rdata;
           m0_rvalid  = s0_rvalid;  s0_rready  = m0_rready;
         end
       end
 
       ARB_M1_RD: begin
-        if (addr_is_periph(m1_araddr)) begin
+        if (m1_to_periph) begin
           s1_araddr  = m1_araddr;  s1_arvalid = m1_arvalid;
           m1_arready = s1_arready; m1_rdata   = s1_rdata;
           m1_rvalid  = s1_rvalid;  s1_rready  = m1_rready;
         end else begin
           s0_araddr  = m1_araddr;  s0_arvalid = m1_arvalid;
+          s0_arlen   = m1_arlen;
           m1_arready = s0_arready; m1_rdata   = s0_rdata;
           m1_rvalid  = s0_rvalid;  s0_rready  = m1_rready;
         end
