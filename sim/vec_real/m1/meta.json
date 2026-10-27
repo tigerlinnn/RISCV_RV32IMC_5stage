@@ -1,0 +1,22 @@
+{
+  "case": "m1",
+  "rows": 6,
+  "cols": 15,
+  "sel": 0,
+  "pool": 0,
+  "relu_type": 0,
+  "mult": 18898,
+  "shift": 9,
+  "zp_in": 0,
+  "zp_out": 69,
+  "zp_act": 13,
+  "oc_groups": 2,
+  "ifm_beats": 90,
+  "wgt_beats": 144,
+  "bia_beats": 16,
+  "lut_beats": 256,
+  "gold_beats": 180,
+  "gold_per_og": 90,
+  "gold_checksum": "0x824DDA4E",
+  "note": "M1/M2 are unit-level cases; M3 firmware uses 416x256 chunking with pooling."
+}

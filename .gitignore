@@ -13,6 +13,10 @@ sim/soc/*.pb
 sim/check/*.hex
 sim/soc/*.hex
 
+# Phase B unit-test run dirs (vectors live in sim/vec_real)
+sim/chunk/
+sim/real/
+
 # firmware build intermediates (firmware.hex is kept for reference)
 sw/build/*.elf
 sw/build/*.map
@@ -21,6 +25,7 @@ sw/build/*.lst
 
 # generated headers / local settings
 sw/yolo_vectors.h
+sw/yolo_real_vectors.h
 .claude/
 
 # OS noise

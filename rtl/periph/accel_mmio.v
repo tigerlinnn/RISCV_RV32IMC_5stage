@@ -37,19 +37,20 @@ module accel_mmio (
     // ── TX stream (CPU -> accelerator S_AXIS) ──────────────────────────────
     // The CPU writes the whole stream into tx_mem first; a recv task then
     // releases a sequential read pointer, so tlast is simply raddr == len-1.
+    // 4096 beats covers one full-width (416 px + 2) row chunk of 8 rows.
     reg  [15:0] tx_len;
     reg  [31:0] tx_lo, tx_hi;
     reg  [15:0] tx_wptr, tx_raddr, tx_push_count;
     reg         tx_started, tx_error;
-    reg  [63:0] tx_mem [0:511];
+    reg  [63:0] tx_mem [0:4095];
 
-    wire        tx_full  = (tx_wptr == 16'd512);
+    wire        tx_full  = (tx_wptr == 16'd4096);
     // Start on the task_valid falling edge (the second reg0 write).  The core
     // clears its weight/bias write counters while task_valid is high, so beats
     // must not be accepted until it drops or the first few are lost.
     wire        tx_start = wr_en && (addr[6:2] == 5'd0) && reg0[9] && !wdata[9] && reg0[0];
     wire        acc_s_tvalid = tx_started && (tx_raddr < tx_len);
-    wire [63:0] acc_s_tdata  = tx_mem[tx_raddr[8:0]];
+    wire [63:0] acc_s_tdata  = tx_mem[tx_raddr[11:0]];
     wire        acc_s_tlast  = (tx_raddr == (tx_len - 16'd1));
     wire        acc_s_tready;
     wire        acc_s_pop    = acc_s_tvalid && acc_s_tready;
@@ -136,7 +137,7 @@ module accel_mmio (
                 endcase
             end
             if (tx_push_ok) begin
-                tx_mem[tx_wptr[8:0]] <= {tx_hi, tx_lo};
+                tx_mem[tx_wptr[11:0]] <= {tx_hi, tx_lo};
                 tx_wptr <= tx_wptr + 16'd1;
                 tx_push_count <= tx_push_count + 16'd1;
             end
